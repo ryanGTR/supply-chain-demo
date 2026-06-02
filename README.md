@@ -20,3 +20,7 @@ Java 21 / Open Liberty 後端 + Vue 3 前端，套上一條「安全預設」的
 
 開放標準件（Syft/Trivy/Semgrep/Gitleaks/cosign/OSV、NIST SSDF/SLSA/CycloneDX/Sigstore），
 平台無關；本 repo 是 GitHub-native 落地版。
+
+## 文件
+
+- [docs/github-port-guide.md](docs/github-port-guide.md) — 設定/介紹/demo/排錯完整指南
