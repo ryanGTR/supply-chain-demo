@@ -14,8 +14,9 @@ on:
 permissions:
   contents: read
   packages: write          # 推 image 到 GHCR
-  id-token: write          # cosign keyless（Sigstore OIDC）
+  id-token: write          # cosign keyless（Sigstore OIDC）+ build provenance
   security-events: write   # 上傳 SARIF 到 code scanning
+  attestations: write      # GitHub artifact attestations（SLSA build provenance）
 
 env:
   REGISTRY: ghcr.io
@@ -60,6 +61,17 @@ jobs:
         with: { sarif_file: gitleaks.sarif, category: gitleaks }
       - name: Gate（命中密鑰 → fail）
         run: '[ "${{ steps.gl.outputs.hit }}" = "0" ] || { echo "✗ 命中密鑰"; exit 1; }'
+
+  # ───────────────── Dependency review（PR 時擋新引入的漏洞/壞 license 依賴）─────────────────
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
 
   # ───────────────── Build → SBOM → Scan → Sign ─────────────────
   build-scan-sign:
@@ -127,3 +139,10 @@ jobs:
           cosign sign --yes "$IMG"
           cosign attest --yes --predicate sbom-${{ matrix.component }}.json --type cyclonedx "$IMG"
           echo "✓ 已簽章 + 綁 SBOM attestation：$IMG"
+
+      - name: SLSA build provenance（GitHub artifact attestation，達 SLSA Build L3）
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ steps.img.outputs.name }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
