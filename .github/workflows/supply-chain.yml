@@ -93,7 +93,7 @@ jobs:
           upload-artifact: true
 
       - name: Scan（Trivy，HIGH/CRITICAL）
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master   # @master 保證解析；用 runner 的 GHCR 登入拉 image
         with:
           image-ref: ${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}
           severity: HIGH,CRITICAL
