@@ -1,0 +1,113 @@
+name: supply-chain
+
+# 供應鏈安全黃金管線（GitHub Actions 版，移植自 GitLab 版 supply-chain-demo）
+#   SAST(Semgrep) · Secret(Gitleaks) · Build→GHCR · SBOM(Syft/CycloneDX) ·
+#   Scan(Trivy) · 簽章 + attestation(cosign keyless via OIDC)
+# v1：GitHub 原生（hosted runner、image 推 GHCR、不接本機 Nexus/DTrack）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write          # 推 image 到 GHCR
+  id-token: write          # cosign keyless（Sigstore OIDC）
+  security-events: write   # 上傳 SARIF 到 code scanning（phase 2）
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}   # ghcr.io/ryangtr/supply-chain-demo
+
+jobs:
+  # ───────────────── SAST ─────────────────
+  sast:
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep SAST（ERROR 等級 → fail）
+        run: |
+          semgrep scan --config auto --json --output semgrep.json . || true
+          ERR=$(python3 -c "import json;d=json.load(open('semgrep.json'));print(sum(1 for r in d.get('results',[]) if r['extra']['severity']=='ERROR'))")
+          echo "Semgrep ERROR findings: $ERR"
+          [ "$ERR" -eq 0 ] || { echo '✗ SAST gate FAIL'; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with: { name: semgrep-sarif, path: semgrep.json }
+
+  # ───────────────── Secret scan ─────────────────
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Gitleaks（命中密鑰 → fail）
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --redact --exit-code=1 \
+            --report-format=sarif --report-path=/repo/gitleaks.sarif
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: gitleaks-sarif, path: gitleaks.sarif }
+
+  # ───────────────── Build → SBOM → Scan → Sign ─────────────────
+  build-scan-sign:
+    needs: [sast, secrets]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 小寫 image 名
+        id: img
+        run: echo "name=$(echo "$IMAGE_PREFIX/${{ matrix.component }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: 登入 GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + Push → GHCR
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.component }}
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ github.sha }}
+            ${{ steps.img.outputs.name }}:latest
+          provenance: false   # SLSA provenance 改用 slsa-github-generator（phase 2）
+
+      - name: SBOM（Syft → CycloneDX）
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom-${{ matrix.component }}.json
+          upload-artifact: true
+
+      - name: Scan（Trivy，HIGH/CRITICAL）
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: '0'      # informational（gate 由 policy/recheck 把關）
+
+      - name: 裝 cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: 簽章 + attestation（cosign keyless）
+        env:
+          IMG: ${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: |
+          cosign version
+          cosign sign --yes "$IMG"
+          cosign attest --yes --predicate sbom-${{ matrix.component }}.json --type cyclonedx "$IMG"
+          echo "✓ 已簽章 + 綁 SBOM attestation：$IMG"
