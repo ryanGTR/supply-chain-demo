@@ -1,0 +1,34 @@
+version: 2
+# Dependabot：自動偵測過期 / 有漏洞的依賴並開 PR。
+# 涵蓋四個 ecosystem——套件(maven/npm) + 供應鏈本身(github-actions/docker)。
+# 開出來的 bump PR 會走本專案的 CI（含 dep-policy 白名單審核），不是繞過治理。
+updates:
+  # 後端 Java 依賴
+  - package-ecosystem: maven
+    directory: /backend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    labels: [dependencies, backend]
+
+  # 前端 npm 依賴
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+
+  # GitHub Actions 版本（會抓到像 trivy-action 版本過期 / 不存在這種）
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    labels: [dependencies, ci]
+
+  # Docker base image（open-liberty / nginx / node 等 FROM）
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: weekly }
+    labels: [dependencies, docker]
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule: { interval: weekly }
+    labels: [dependencies, docker]
