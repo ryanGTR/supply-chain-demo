@@ -1,0 +1,42 @@
+# Mend-style 政策模擬（open-source 仿 Mend 行為，非真接 Mend SaaS）
+#
+# 哲學：default-allow + 掃描 + policy → 違規才 reject（對比 dep-policy 的 default-deny 白名單）。
+# 評估對象：從 manifest 解析出的「全部元件（含 transitive）」——discovery，不維護清單。
+#
+# 真實 Mend：policy 設在 SaaS console、套到 product/project；此處用一份檔模擬其判定邏輯。
+# 由 scripts/mend_policy_eval.py 讀取，套用到 Trivy 掃描結果。
+
+metadata:
+  name: "supply-chain demo — Mend-style org policy"
+  model: "policy-based (default-allow, reject on violation)"
+
+policies:
+  # 1) 安全漏洞門檻（≈ Mend security policy / CVSS·KEV）
+  - name: reject-high-and-critical-vulns
+    type: security
+    min_severity: HIGH          # HIGH 以上即違規
+    action: reject              # reject = build fail
+    note: "真 Mend 會用 reachability/effective-usage 降噪；本 sim 未實作 reachability。"
+
+  # 2) 授權禁用清單（≈ Mend license policy）
+  - name: reject-banned-licenses
+    type: license
+    banned:
+      - GPL-2.0
+      - GPL-2.0-only
+      - GPL-3.0
+      - GPL-3.0-only
+      - AGPL-3.0
+      - LGPL-3.0
+    action: reject
+
+  # 3) 元件年齡（≈ Mend Renovate merge-confidence）
+  - name: warn-too-new
+    type: age
+    min_age_days: 30
+    action: warn               # 僅警告：需發佈日期資料；真 Mend 由 merge-confidence 提供
+    note: "本 sim 不強制（離線無發佈日期）；對應 dep-policy 的 cooldown 30 天。"
+
+settings:
+  fail_on: [reject]            # 出現 reject 動作的違規 → exit 1
+  inventory_report: true       # 產 Mend 風格 inventory（discovery 全元件）
