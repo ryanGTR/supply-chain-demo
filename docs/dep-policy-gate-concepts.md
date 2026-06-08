@@ -115,8 +115,12 @@ UNAPPROVED=$(comm -23 actual.txt approved.txt)
 |---|---|---|---|
 | L1 開發機 `settings.xml` → 指向 Nexus | 源頭 | Maven mirror | ❌ |
 | **L2 Nexus proxy + Firewall** | 抓取下載當下 | Sonatype Nexus Firewall / IQ Server（**獨立 policy 引擎**）/ content selector | ❌（只在 docs 提）|
-| **L3 CI gate** | build/CI | `dep-policy-check.sh` vs 白名單（身份核可）| ✅ |
+| **L3 CI gate — 身份** | build/CI | `dep-policy-gate`：`dep-policy-check.sh` vs 白名單（**default-deny** 身份核可）| ✅ |
+| **L3 CI gate — 漏洞/授權** | build/CI | `mend-style-gate`：Trivy 掃描 + `mend-policy.yaml`（**default-allow**，模擬 Mend；見 [[mend-style-vs-allowlist]]）| ✅ |
 | L4 部署 / admission | 上線前 | cosign verify 簽章 + SLSA provenance | ❌（backlog T1）|
+
+> L3 現有**兩條互補 gate**：身份層（沒核可就擋）+ 漏洞/授權層（有 CVE/壞 license 就擋）。
+> 同一顆 log4j：`dep-policy-gate` 因「沒被核可」擋、`mend-style-gate` 因「有 CVE」擋。兩者皆為 main 的 required check。
 
 **白名單 ≠ 交給 Nexus 下載**：Nexus 不讀這份 yaml（它不吃這格式）。要兩邊同一份政策，得把
 allow-list **翻譯**成 Nexus 的 IQ policy / content selector——同一規則、兩個引擎各自實作。
