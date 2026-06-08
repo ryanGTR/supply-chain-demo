@@ -73,9 +73,41 @@ jobs:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
 
+  # ───────────────── Dependency policy gate（宣告依賴 ⊆ dep-policy 白名單）─────────────────
+  # 比對「pom / package-lock 解析出的依賴座標」vs security-team/dep-policy 的 allow-list，
+  # 不在清單即 exit 1 擋下。白名單的唯一真實來源是獨立的 dep-policy repo。
+  dep-policy-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+
+      - name: Checkout dep-policy（allow-list 唯一真實來源）
+        uses: actions/checkout@v4
+        with:
+          repository: ryanGTR/dep-policy
+          path: .dep-policy
+
+      - name: 裝 Java 21（給 mvn dependency:list 用；mvn 為 runner 預裝）
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gate — backend（pom 依賴 ⊆ maven-approved.yaml）
+        env:
+          USE_HOST_TOOLS: '1'
+          POLICY_DIR: ${{ github.workspace }}/.dep-policy
+        run: ./scripts/dep-policy-check.sh backend
+
+      - name: Gate — frontend（package-lock ⊆ npm-approved.yaml）
+        env:
+          POLICY_DIR: ${{ github.workspace }}/.dep-policy
+        run: ./scripts/dep-policy-check.sh frontend
+
   # ───────────────── Build → SBOM → Scan → Sign ─────────────────
   build-scan-sign:
-    needs: [sast, secrets]
+    needs: [sast, secrets, dep-policy-gate]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
