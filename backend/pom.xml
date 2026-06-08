@@ -30,6 +30,12 @@
             <type>pom</type>
             <scope>provided</scope>
         </dependency>
+        <!-- VERIFY: 既未核可(擋 dep-policy-gate)又有 Log4Shell(擋 mend-style-gate) -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.14.1</version>
+        </dependency>
     </dependencies>
 
     <build>
