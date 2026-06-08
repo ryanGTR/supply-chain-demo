@@ -105,9 +105,31 @@ jobs:
           POLICY_DIR: ${{ github.workspace }}/.dep-policy
         run: ./scripts/dep-policy-check.sh frontend
 
+  # ───────────────── Mend-style gate（policy-based / default-allow，模擬 Mend）─────────────────
+  # 開源工具仿 Mend：Trivy discovery 全元件(含 transitive) → vuln+license 掃描 →
+  # 套 mend-sim/mend-policy.yaml（命中 reject 政策才擋）。對比 dep-policy-gate 的 default-deny 白名單。
+  # 詳見 docs/mend-style-vs-allowlist.md。
+  mend-style-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 裝 PyYAML（政策評估器用）
+        run: pip install --quiet pyyaml
+
+      - name: Mend-style 掃描 + 政策評估（backend + frontend）
+        run: ./scripts/mend-style-scan.sh all
+
+      - name: 上傳 Mend-style inventory 報告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mend-inventory
+          path: /tmp/mend-sim/mend-inventory.md
+
   # ───────────────── Build → SBOM → Scan → Sign ─────────────────
   build-scan-sign:
-    needs: [sast, secrets, dep-policy-gate]
+    needs: [sast, secrets, dep-policy-gate, mend-style-gate]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
