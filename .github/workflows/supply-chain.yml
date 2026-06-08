@@ -66,6 +66,9 @@ jobs:
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:                 # 最小權限：只此 job 需要寫 PR 留言
+      contents: read             #   讀 dependency graph / diff
+      pull-requests: write       #   comment-summary-in-pr 貼摘要
     steps:
       - uses: actions/checkout@v4
       - uses: actions/dependency-review-action@v4
