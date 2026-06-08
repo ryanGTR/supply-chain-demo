@@ -105,6 +105,11 @@ jobs:
           POLICY_DIR: ${{ github.workspace }}/.dep-policy
         run: ./scripts/dep-policy-check.sh frontend
 
+      - name: Gate — dotnet（packages.lock ⊆ nuget-approved.yaml）
+        env:
+          POLICY_DIR: ${{ github.workspace }}/.dep-policy
+        run: ./scripts/dep-policy-check.sh nuget
+
   # ───────────────── Mend-style gate（policy-based / default-allow，模擬 Mend）─────────────────
   # 開源工具仿 Mend：Trivy discovery 全元件(含 transitive) → vuln+license 掃描 →
   # 套 mend-sim/mend-policy.yaml（命中 reject 政策才擋）。對比 dep-policy-gate 的 default-deny 白名單。
@@ -117,7 +122,7 @@ jobs:
       - name: 裝 PyYAML（政策評估器用）
         run: pip install --quiet pyyaml
 
-      - name: Mend-style 掃描 + 政策評估（backend + frontend）
+      - name: Mend-style 掃描 + 政策評估（backend + frontend + dotnet）
         run: ./scripts/mend-style-scan.sh all
 
       - name: 上傳 Mend-style inventory 報告
@@ -134,7 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [backend, frontend]
+        component: [backend, frontend, dotnet]
     steps:
       - uses: actions/checkout@v4
 

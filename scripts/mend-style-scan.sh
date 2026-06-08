@@ -27,8 +27,9 @@ mkdir -p "$OUT"
 case "${1:-all}" in
     backend)  COMPONENTS=(backend) ;;
     frontend) COMPONENTS=(frontend) ;;
-    all)      COMPONENTS=(backend frontend) ;;
-    *) echo "用法: $0 [backend|frontend|all]" >&2; exit 1 ;;
+    dotnet)   COMPONENTS=(dotnet) ;;
+    all)      COMPONENTS=(backend frontend dotnet) ;;
+    *) echo "用法: $0 [backend|frontend|dotnet|all]" >&2; exit 1 ;;
 esac
 
 [ -f "$POLICY" ] || { echo "找不到 policy: $POLICY" >&2; exit 1; }

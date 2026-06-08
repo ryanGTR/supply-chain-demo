@@ -39,8 +39,12 @@ case "$KIND" in
         TARGET_DIR="${TARGET_DIR:-$ROOT/frontend}"
         POLICY_FILE="$POLICY_DIR/npm-approved.yaml"
         ;;
+    nuget)
+        TARGET_DIR="${TARGET_DIR:-$ROOT/dotnet}"
+        POLICY_FILE="$POLICY_DIR/nuget-approved.yaml"
+        ;;
     *)
-        echo "用法: $0 backend|frontend [<dir>]" >&2
+        echo "用法: $0 backend|frontend|nuget [<dir>]" >&2
         exit 1
         ;;
 esac
@@ -83,6 +87,16 @@ case "$KIND" in
         jq -r '.packages | to_entries[]
             | select(.key | startswith("node_modules/"))
             | (.key | sub("^node_modules/"; "")) + "@" + .value.version' "$LOCK" \
+            | sort -u > "$ACTUAL_FILE"
+        ;;
+    nuget)
+        step "1/2  抽 .NET NuGet dependency 清單"
+        LOCK="$TARGET_DIR/packages.lock.json"
+        [ -f "$LOCK" ] || gate_fail "找不到 $LOCK（要 dotnet restore --use-lock-file）"
+        # packages.lock.json：.dependencies[<tfm>][<name>].resolved；含 Direct + Transitive
+        jq -r '.dependencies | to_entries[] | .value | to_entries[]
+            | select(.value.resolved != null)
+            | "\(.key)@\(.value.resolved)"' "$LOCK" \
             | sort -u > "$ACTUAL_FILE"
         ;;
 esac
