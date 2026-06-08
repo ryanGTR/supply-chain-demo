@@ -27,7 +27,7 @@ jobs:
   sast:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Semgrep（產 SARIF）
         run: |
           # 拉 image 加重試，避開 registry 逾時 flake（之前 || true 會把拉失敗吃成假成功）
@@ -55,7 +55,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0 }
       - name: Gitleaks（產 SARIF）
         id: gl
@@ -79,7 +79,7 @@ jobs:
       contents: read             #   讀 dependency graph / diff
       pull-requests: write       #   comment-summary-in-pr 貼摘要
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
@@ -92,10 +92,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout dep-policy（allow-list 唯一真實來源）
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ryanGTR/dep-policy
           path: .dep-policy
@@ -129,7 +129,7 @@ jobs:
   mend-style-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: 裝 PyYAML（政策評估器用）
         run: pip install --quiet pyyaml
@@ -153,7 +153,7 @@ jobs:
       matrix:
         component: [backend, frontend, dotnet]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: 小寫 image 名
         id: img
