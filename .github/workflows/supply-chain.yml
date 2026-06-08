@@ -42,7 +42,7 @@ jobs:
           # 確保 SARIF 真的產出（拉失敗/崩潰時不會有，避免靜默放行）
           [ -s semgrep.sarif ] || { echo "✗ 沒產出 semgrep.sarif（掃描未成功）"; exit 1; }
       - name: 上傳 SARIF → code scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with: { sarif_file: semgrep.sarif, category: semgrep }
       - name: Gate（ERROR 等級 → fail）
@@ -65,7 +65,7 @@ jobs:
             --report-format=sarif --report-path=/repo/gitleaks.sarif \
             --exit-code=1 && echo "hit=0" >> "$GITHUB_OUTPUT" || echo "hit=1" >> "$GITHUB_OUTPUT"
       - name: 上傳 SARIF → code scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with: { sarif_file: gitleaks.sarif, category: gitleaks }
       - name: Gate（命中密鑰 → fail）
@@ -194,7 +194,7 @@ jobs:
           severity: HIGH,CRITICAL
 
       - name: 上傳 Trivy SARIF → code scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-${{ matrix.component }}.sarif
