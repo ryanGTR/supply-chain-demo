@@ -30,8 +30,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Semgrep（產 SARIF）
         run: |
+          # 拉 image 加重試，避開 registry 逾時 flake（之前 || true 會把拉失敗吃成假成功）
+          for i in 1 2 3; do docker pull semgrep/semgrep && break || { echo "pull 第 $i 次失敗，重試…"; sleep 10; }; done
+          set +e
           docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep \
-            semgrep scan --config auto --sarif --output semgrep.sarif . || true
+            semgrep scan --config auto --sarif --output semgrep.sarif .
+          rc=$?
+          set -e
+          # exit 0=無發現 / 1=有發現（交給 Gate 判）；≥2=Semgrep 真錯（含 image 拉不到）→ fail
+          [ "$rc" -le 1 ] || { echo "✗ Semgrep 執行錯誤 (exit $rc)"; exit 1; }
+          # 確保 SARIF 真的產出（拉失敗/崩潰時不會有，避免靜默放行）
+          [ -s semgrep.sarif ] || { echo "✗ 沒產出 semgrep.sarif（掃描未成功）"; exit 1; }
       - name: 上傳 SARIF → code scanning
         uses: github/codeql-action/upload-sarif@v3
         if: always()
