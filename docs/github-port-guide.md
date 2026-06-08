@@ -28,7 +28,8 @@ PR / Pages）。
 | 依賴治理儀表板（Pages）| https://ryangtr.github.io/dep-policy/ |
 | worked 審核 PR | https://github.com/ryanGTR/dep-policy/pull/1 |
 
-工作目錄：`~/Documents/supply-chain-github/{app,dep-policy}`；PAT 在 `.secrets/github-pat.env`（gitignore）。
+工作目錄：`~/Documents/supply-chain-github/{app,dep-policy}`。
+認證：git 走 **SSH**、API 用 **`gh`**。（早期版本曾用 `.secrets/github-pat.env` 內嵌 PAT，**已淘汰**——PAT 易外洩。）
 
 ## 2. 管線（`app/.github/workflows/supply-chain.yml`）
 
@@ -63,14 +64,16 @@ github-actions/docker 自動更新。
 ## 5. 從零重建（已有 GitHub 帳號 + 兩個空 repo）
 
 ```bash
-# 0) 認證：填 .secrets/github-pat.env（fine-grained PAT：Contents/Workflows/PR/
-#    Administration/Secrets/Actions/Pages/Commit statuses 皆 R+W）
-cd ~/Documents/supply-chain-github && set -a && source .secrets/github-pat.env && set +a
-A="Authorization: Bearer $GITHUB_PAT"
+# 0) 認證：gh 登入（git 走 SSH；下面 curl API 用 gh 的 token，不落地 PAT）
+#    ⚠️ 別再把 PAT 內嵌進 remote URL（會在 git config 明文外洩）。
+gh auth login                                    # 選 SSH protocol；或 gh auth status 確認
+GITHUB_OWNER=ryanGTR
+GITHUB_REPO=supply-chain-demo
+A="Authorization: Bearer $(gh auth token)"       # 給下面 curl 用，token 不落地
 
 # 1) App repo：推 app/（含 workflows + dependabot.yml）
 cd app && git init -b main && git add -A && git commit -m init
-git remote add origin "https://x-access-token:${GITHUB_PAT}@github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git"
+git remote add origin "git@github.com:${GITHUB_OWNER}/${GITHUB_REPO}.git"
 git push -u origin main
 
 # 2) 開安全功能（secret scanning push protection + Dependabot 警報/自動修補）
