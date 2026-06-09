@@ -19,7 +19,7 @@ sources:
 
 ## 0. 結論
 
-`mend-real-gate` 在 **main run** 解析 `mend dep` 輸出 → 把**漏洞（High/Critical）+ policy 違規**開成 Azure Boards **Issue**（tag `mend-sca` 去重、severity→Priority）。沒有 Mend seat 的人在 Boards 就能看到元件風險。
+`mend-real-gate` 在 **main run** 解析 `mend dep` 輸出 → 把**漏洞（High/Critical）+ policy 違規**開成 Azure Boards **Issue**（tag `mend-sca` 去重、severity→Priority），並**自動關閉不再出現的 Issue**（讓 Boards 反映現況）。沒有 Mend seat 的人在 Boards 就能看到元件風險。
 
 ---
 
@@ -47,6 +47,8 @@ mend dep --update（main） ──stdout──▶ /tmp/mend-<comp>.out
 | **只在 main/manual 開票**（PR 不開）| PR 是過程、會有 branch 噪音；main = inventory of record |
 | **work item 用 Issue** | 此 ADO project 是 **Basic** process（無 Bug，只有 Issue/Task/Epic）|
 | **去重 = tag `mend-sca` + `key:<lib@ver\|issue>`** | 重跑不重複開；WIQL 撈既有 key 比對 |
+| **自動關閉**（idempotent）| 本元件既有 open Issue 中 key 不在本次掃描的 → 設 `Done`；讓 Boards 反映現況，不只增不減 |
+| **掃描失敗護欄** | 只有 mend 確實完成掃描（有 `Detected`/`No Policy` 標記）才執行關閉，避免掃描失敗誤關全部 |
 | **severity → Priority** | CRITICAL=1 / HIGH=2 / MEDIUM=3 |
 | **continueOnError（advisory）** | Boards 開票失敗不擋 build |
 
@@ -63,6 +65,7 @@ mend dep --update（main） ──stdout──▶ /tmp/mend-<comp>.out
 | **az 認證** | `az boards` 在我互動 shell 能開票，pipeline 非互動 task 卻建 0 | az devops PAT 存**系統 keyring**，agent task 無解鎖的 keyring session → 改用 `AZURE_DEVOPS_EXT_PAT=$(System.AccessToken)` + `--organization`（build token，不靠 keyring）|
 | **NuGet 版本解析** | `newtonsoft.json.13@0.3`（切錯）| NuGet 是 `name.ver.nupkg`（點分），改「首個 `.數字` 換 `@`」→ `newtonsoft.json@13.0.3` |
 | **去重 key 含空格** | `policy:Library Staleness` 被空格分隔切爛、去重失效 | 改**換行分隔**、保留 key 內部空格 |
+| **az 子命令參數不一致** | `az boards work-item update`/`show` 報 `unrecognized arguments: --project` | update/show **不吃 `--project`**（只 create/query 吃）→ 關閉時只傳 `--organization` |
 | **吞錯** | 失敗看不到原因 | 拿掉 `2>/dev/null`，開票失敗印出 az 錯誤 |
 
 > 教訓：自架 agent 上「我互動能跑」≠「pipeline task 能跑」——**互動 session 的 keyring/登入態，非互動 task 拿不到**。ADO 內要用 `System.AccessToken`。
@@ -83,8 +86,9 @@ mend dep --update（main） ──stdout──▶ /tmp/mend-<comp>.out
 
 ## 5. 可選後續
 
-- **自動關閉**：目前「只開不關」。若元件升級後 finding 消失（如修掉 axios → 12 個 staleness 不再出現），舊 Issue 會留著。可加「重掃後比對，關閉不再出現的 mend-sca Issue」。
-- **服務帳號權限**：靠 build service（System.AccessToken）的 work-item write；真實環境用專用服務帳號時要確認該權限。
+- ~~自動關閉~~ ✅ **已實作**（§2）：finding 消失 → 自動設 `Done`，含掃描失敗護欄。
+- **服務帳號權限**：靠 build service（System.AccessToken）的 work-item write/update；真實環境用專用服務帳號時要確認該權限。
+- **重開**：finding 消失被關成 `Done` 後若再出現，去重查詢以 `[State] <> 'Done'` 過濾 → 會開**新** Issue（而非復活舊的）。
 
 ---
 
@@ -114,7 +118,9 @@ OUT="${2:?需 mend 輸出檔}"
 PROJECT="${BOARDS_PROJECT:-supply-chain-demo}"
 TAG="mend-sca"
 ORG="${SYSTEM_COLLECTIONURI:-https://dev.azure.com/<ORG>/}"; ORG="${ORG%/}"
-AZ_ARGS=(--organization "$ORG" --project "$PROJECT")
+AZ_ARGS=(--organization "$ORG" --project "$PROJECT")  # create/query 用
+AZ_ORG=(--organization "$ORG")                        # update/show 不吃 --project
+CLOSED_STATE="${BOARDS_CLOSED_STATE:-Done}"           # Basic process 完成態(Agile 用 Closed)
 
 parse_lib() {   # lib 檔名 → name@version
   local f="$1"
@@ -127,14 +133,16 @@ sev_prio() { case "$1" in CRITICAL) echo 1;; HIGH) echo 2;; MEDIUM) echo 3;; *) 
 
 if [ "${MOCK:-0}" = "1" ]; then EXISTING=""; else
   EXISTING=$(az boards query "${AZ_ARGS[@]}" --wiql \
-    "SELECT [System.Id],[System.Tags] FROM workitems WHERE [System.Tags] CONTAINS '$TAG' AND [System.State] <> 'Closed'" \
+    "SELECT [System.Id],[System.Tags] FROM workitems WHERE [System.Tags] CONTAINS '$TAG' AND [System.State] <> '$CLOSED_STATE'" \
     --query "[].fields.\"System.Tags\"" -o tsv 2>/dev/null | tr ';' '\n' | grep -oE 'key:[^;]+' | sed -E 's/^key: *//; s/ +$//')
 fi
 SEEN=$(mktemp); printf '%s\n' "$EXISTING" > "$SEEN"
+FOUND=$(mktemp)    # 本次掃描現況的 key(不論新舊)；給自動關閉比對
 created=0; skipped=0
 
 emit() {  # key  title  sev
   local key="$1" title="$2" sev="$3"
+  echo "$key" >> "$FOUND"
   grep -qxF "$key" "$SEEN" && { skipped=$((skipped+1)); return; }
   echo "$key" >> "$SEEN"
   if [ "${MOCK:-0}" = "1" ]; then echo "  + [$sev] $title"; created=$((created+1)); return; fi
@@ -161,7 +169,23 @@ while IFS='|' read -r _ lib ptype pname _; do
   lv=$(parse_lib "$libf"); emit "${lv}|policy:${ptype}" "[supply-chain/$COMP] ${lv} — policy: ${ptype}" "HIGH"
 done < <(awk '/Detected .* Policy violations/{f=1} /^[A-Za-z].* = /{f=0} f' "$OUT" 2>/dev/null | grep -E '^\| ' | grep -ivE 'LIBRARY *\| *POLICY')
 
-rm -f "$SEEN"; echo "[$COMP] Boards: 建立 $created、跳過 $skipped"
+# 3. 自動關閉：本元件既有 open Issue 中 key 不在本次掃描的 → 設 Done（含掃描失敗護欄）
+closed=0
+if [ "${MOCK:-0}" != "1" ] && grep -qE "Detected .* (vulnerabilities|Policy violations)|No Policy violations" "$OUT"; then
+  while IFS=$'\t' read -r id tags; do
+    [ -z "$id" ] && continue
+    key=$(echo "$tags" | tr ';' '\n' | grep -oE 'key:[^;]+' | sed -E 's/^key: *//; s/ +$//')
+    grep -qxF "$key" "$FOUND" && continue                 # 仍在現況 → 不關
+    az boards work-item update "${AZ_ORG[@]}" --id "$id" --state "$CLOSED_STATE" \
+      --discussion "mend-sca: 此 finding 不再出現於最新掃描，自動關閉。" -o none 2>/dev/null \
+      && { echo "  ✓ 關閉(finding 消失): $key"; closed=$((closed+1)); }
+  done < <(az boards query "${AZ_ARGS[@]}" --wiql \
+      "SELECT [System.Id],[System.Tags] FROM workitems WHERE [System.Tags] CONTAINS '$TAG' AND [System.Tags] CONTAINS 'comp:$COMP' AND [System.State] <> '$CLOSED_STATE'" \
+      --query "[].{id:fields.\"System.Id\",tags:fields.\"System.Tags\"}" -o json 2>/dev/null \
+    | jq -r '.[]? | "\(.id)\t\(.tags)"')
+fi
+
+rm -f "$SEEN" "$FOUND"; echo "[$COMP] Boards: 建立 $created、跳過 $skipped、關閉 $closed"
 ```
 > 把 `<ORG>` 換成公司 org（pipeline 內會被 `SYSTEM_COLLECTIONURI` 覆蓋，本機測才用 fallback）。
 > 本機測解析：`MOCK=1 ./scripts/mend-to-boards.sh frontend mend-output.txt`（只印不開票）。
