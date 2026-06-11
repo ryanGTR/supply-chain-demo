@@ -2,7 +2,7 @@
 title: feed-sync — 核可元件鏡像進 Azure Artifacts curated feed
 type: howto
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-06-11
 tags: [supply-chain, azure-artifacts, feed-sync, curated-feed, quarantine, maven, l1-source-enforcement]
 sources:
   - dep-policy/scripts/feed-sync-maven.sh
@@ -23,7 +23,7 @@ sources:
 兩半：**(1) feed-sync**（核可 coord → 鏡像進 feed，§5–6）+ **(2) L1 來源強制**（build 只從 feed 拉，§7）。
 feed 設 **upstream OFF（curated-only）**：feed 內**只有你明確推進去的**，才是 default-deny；upstream ON 會 proxy 公開源、擋不住沒核可的。
 
-**實跑結果**：三生態系全綠——feed `approved-deps` 有 **159 個核可元件**（Maven 32 + npm 126 + NuGet 1），idempotent；L1 驗證：未核可的 guava 被 feed-only mirror 擋住 ✅。
+**實跑結果**：三生態系全綠——feed `approved-deps` 有 **175 個套件**（Maven 48 = 32 jar + 16 pom-only closure、npm 126、NuGet 1），idempotent；L1 驗證：未核可的 guava 被 feed-only mirror 擋住 ✅、核可的 commons-lang3 含 parent/BOM 鏈從 feed 乾淨解析 ✅（closure 補全見 §7）。
 
 ---
 
@@ -204,12 +204,35 @@ fi
 > **實跑結果**：`✓ L1 生效` — guava（不在核可清單）被擋。閉環的「來源強制」證明可行。
 > 用乾淨 `-Dmaven.repo.local`（避免命中 agent ~/.m2 既有快取，才是真的測 feed）。
 
-### ⚠️ 真實落地的 closure 缺口（重要）
-curated feed 要讓**核可元件也能乾淨解析**，需含**完整 closure，包含 parent POM / BOM**——而
-`mvn dependency:list`（dep-policy 白名單來源）**只列依賴、不列 parent POM**。所以 feed-sync 目前推的
-是依賴清單，真正 build 從 feed 解析時可能缺 parent POM（如 `commons-parent`）。
-**待補**：feed-sync 也要同步每個 coord 的 parent POM 鏈（`mvn help:effective-pom` 或遞迴抓 parent）。
-（本篇 L1 驗證聚焦「未核可被擋」的安全性質，此 closure 補全是落地前要做的工程。）
+### ✅ closure 補全（2026-06-11，PR 26/27/28，run #71 全綠）
+
+curated feed 要讓**核可元件也能乾淨解析**，需含完整 POM metadata closure——`mvn dependency:list`
+（白名單來源）只列依賴，不列 parent POM，也不列 `dependencyManagement` import 的 BOM。
+
+**演進過程（兩次失敗才收斂到正解）**：
+1. **v1 遞迴 parent 鏈**（PR 26）：沿 `<parent>` 標籤逐層 deploy。推進 19 個 parent ✓，
+   但 run #67 證明不夠——`commons-lang3` 的 POM import 了 `junit-bom`（BOM import 是
+   closure 的另一半，且版本常是屬性變數，逐層解析 XML 會越寫越漏）。
+2. **v2 by-construction（採用）**：在**乾淨 local repo** 重新 `dependency:get` 全部核可
+   coord——Maven 下載的每個 `.pom` 就是解析所需的完整集合（parent 鏈、BOM import、BOM 的
+   parent 全包），整批 deploy(pom-only) 進 feed。**jar 仍只推核可清單**（POM 是 metadata，
+   不放大 feed 的程式碼面）。先暖 `dependency-plugin` 並快照、`comm` 差集排除 plugin 自身
+   依賴樹（~246 個 POM，不屬核可 closure）。每個 POM 先 `curl` HEAD feed 問在不在再 deploy
+   （已在的 100ms 跳過，重跑快）。
+
+**正向驗證 `l1-verify-closure.sh`**（與負向 `l1-verify-maven.sh` 成對）：核可元件
+（`commons-lang3`，鏈最深）在 feed-only + 乾淨 repo 下應**解析成功**。
+**踩雷⑩**：暖機的 plugin 快取帶 `_remote.repositories` 追蹤檔（記錄「來自 central」），
+feed-only 階段 mirror id 不同會被 Maven 判定來源不符而向 feed 重抓 plugin → 誤判 closure
+缺口。解法：暖機後 `find $REPO -name _remote.repositories -delete`。
+
+**實跑結果（run #71）**：POM closure 差集 56 個（32 coord 自身 + 19 parent + junit-bom 等
+5 個 BOM 引用），全部入庫零失敗；closure 正向驗證 ✓、負向驗證持續 ✓。feed 現況：
+Maven 48 套件（32 jar + 16 pom-only）+ npm 126 + NuGet 1。
+
+> 殘留議題（獨立軌）：真實 app build 若用 `mirrorOf=*`，**maven plugin 的 jar** 也得從
+> feed 來（plugin closure）。自架 agent 因 ~/.m2 既有快取不會踩到；乾淨環境要嘛 plugin
+> 也入庫、要嘛 mirror 排除 plugin repo。詳見 [[provided-scope-platform-governance]] 的治理軌思路。
 
 ---
 
