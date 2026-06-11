@@ -28,7 +28,7 @@ PR / Pages）。
 | 依賴治理儀表板（Pages）| https://ryangtr.github.io/dep-policy/ |
 | worked 審核 PR | https://github.com/ryanGTR/dep-policy/pull/1 |
 
-工作目錄：`~/Documents/supply-chain-github/{app,dep-policy}`。
+工作目錄：`~/Documents/supply-chain/github/{app,dep-policy}`。
 認證：git 走 **SSH**、API 用 **`gh`**。（早期版本曾用 `.secrets/github-pat.env` 內嵌 PAT，**已淘汰**——PAT 易外洩。）
 
 ## 2. 管線（`app/.github/workflows/supply-chain.yml`）
@@ -137,5 +137,5 @@ curl -sX POST -H "$A" "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/p
 
 ## See Also
 
-- GitLab 版來源：`~/Documents/supply-chain-demo/docs/`（setup-guide / tech-stack / approval-flow-* / compliance-mapping）
+- GitLab 版來源：`~/Documents/supply-chain/gitlab/docs/`（setup-guide / tech-stack / approval-flow-* / compliance-mapping）
 - GitHub Well-Architected：managing dependency threats（本指南 §7 對照）
