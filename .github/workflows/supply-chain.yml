@@ -217,3 +217,83 @@ jobs:
           subject-name: ${{ steps.img.outputs.name }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+  # ───────────────── L4 發佈前驗章（檔案型 jar/war，貼合公司實況）─────────────────
+  # 右側部署治理(移植自 itops):build war → SBOM → scan → sign-blob → L4 verify(fail-closed)
+  # → CMDB 證據鏈。驗的是「真的要部署的那個檔案」,不是容器 image(見 docs/file-artifact-delivery.md)。
+  # 工具組在 deploy-governance/(github/ADO 共用)。只 need 後端相關閘門:前端 form-data CVE
+  # 讓 mend-style-gate 紅,但那是前端問題,不該擋後端 war 的發佈。
+  release-backend:
+    needs: [sast, secrets, dep-policy-gate]
+    runs-on: ubuntu-latest
+    env:
+      COSIGN_PASSWORD: ""   # Tier 1 PoC:每次 run 產臨時 key-pair 簽+驗(無持久祕密);Tier 2 換 Vault transit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 裝 Java 21
+        uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - name: 裝 PyYAML / cosign / syft
+        run: |
+          pip install --quiet pyyaml
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Build war + 跑測試（mvn package → liberty-backend.war + surefire 報告）
+        run: mvn -B -f backend/pom.xml package
+
+      - name: SBOM（Syft → CycloneDX,掃 war 檔)
+        run: syft backend/target/liberty-backend.war -o cyclonedx-json=sbom-backend.json
+
+      - name: Scan（Trivy fs 掃 war → JSON）
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: backend/target/liberty-backend.war
+          format: json
+          output: trivy-backend.json
+          severity: HIGH,CRITICAL
+
+      - name: 掃描判定（scan_verdict.py → scan-verdict-backend.json）
+        run: python3 deploy-governance/scan_verdict.py --in trivy-backend.json --out scan-verdict-backend.json
+
+      - name: 簽章（cosign sign-blob，臨時信任根）
+        run: |
+          cosign generate-key-pair --output-key-prefix ci
+          cosign sign-blob --key ci.key --yes \
+            --output-signature backend/target/liberty-backend.war.sig \
+            backend/target/liberty-backend.war
+
+      - name: 產 ReleaseManifest（emit_manifest.py，digest/testReport 由檔案算)
+        run: |
+          python3 deploy-governance/emit_manifest.py \
+            --app supply-chain-backend --component backend --ecosystem java \
+            --artifact backend/target/liberty-backend.war \
+            --coordinates com.example:liberty-backend:1.0.0 \
+            --signature backend/target/liberty-backend.war.sig --mode key-pair \
+            --sbom sbom-backend.json --scan-verdict scan-verdict-backend.json \
+            --surefire-dir backend/target/surefire-reports \
+            --out release-backend.yaml
+
+      - name: L4 發佈前驗章閘門（verify_release.py，fail-closed）
+        run: python3 deploy-governance/verify_release.py --manifest release-backend.yaml --pubkey ci.pub --root .
+
+      - name: CMDB 登錄 + 驗證（已發佈 artifact + 證據鏈）
+        run: |
+          python3 deploy-governance/cmdb_register.py --manifest release-backend.yaml \
+            --cmdb-dir cmdb --verified-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 deploy-governance/cmdb_validate.py --cmdb-dir cmdb --root .
+
+      - name: 上傳發佈證據包（war + 簽章 + manifest + SBOM + 判定 + CMDB）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-backend
+          path: |
+            backend/target/liberty-backend.war
+            backend/target/liberty-backend.war.sig
+            release-backend.yaml
+            sbom-backend.json
+            scan-verdict-backend.json
+            cmdb/**

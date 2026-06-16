@@ -30,6 +30,13 @@
             <type>pom</type>
             <scope>provided</scope>
         </dependency>
+        <!-- 測試:JUnit 5(test gate 的根據,讓 mvn test 非空且真跑) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -44,6 +51,12 @@
                 <groupId>io.openliberty.tools</groupId>
                 <artifactId>liberty-maven-plugin</artifactId>
                 <version>3.10.3</version>
+            </plugin>
+            <!-- surefire:跑 JUnit 5 測試,產 surefire 報告(test gate 證據來源) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
             </plugin>
         </plugins>
     </build>
