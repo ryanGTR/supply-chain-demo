@@ -1,0 +1,29 @@
+# ReleaseManifest 範例 — supply-chain 簽完 artifact 後交給 L4 部署治理的契約。
+# 由 CI 在 sign 步驟之後自動產出(這裡是手寫示意)。schema 見 ../release-contract.md。
+apiVersion: supplychain/v1
+kind: ReleaseManifest
+metadata:
+  app: supply-chain-backend
+  component: backend
+  ecosystem: java
+  requestedBy: ci
+  environment: ""              # Tier 1 無多環境;Tier 2 promote 逐區填
+  serviceRequest: ""           # 可接 itops × iTop 的 UserRequest 編號
+spec:
+  artifact:
+    coordinates: com.example:product:1.0.0
+    type: war
+    path: backend/target/product.war
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    feed: ""                   # Tier 2:Azure Artifacts Maven feed
+  signature:
+    path: backend/target/product.war.sig
+    mode: key-pair             # Tier 1 PoC;Tier 2 換 hashivault,閘門不動(D3)
+    certificate: ""            # keyless 模式才填
+  evidence:
+    sbom: sbom-backend.json             # Syft → CycloneDX
+    scanVerdict: scan-verdict-backend.json   # Trivy/Mend 判定,須 verdict: pass
+    testReport: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    testCount: 3
+    provenance: ""             # SLSA build provenance(可選)
+  dataClassification: internal

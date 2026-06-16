@@ -18,8 +18,9 @@ note: |
 - **端到端閉環 + 制度層**：還沒到位，整體約 **L2–3**。
 - **最大價值**：已從「純 demo」落到「真實公司 stack」——Azure DevOps + 真 Mend(org=Bank of Taiwan)
   + Azure Artifacts(規劃) + Azure Boards(可見性)。比純展示前進一大步。
-- **一句話**：能做、可演、且開始貼合真實環境；但「**核可 → 入庫 → 部署驗證**」這條鏈還有缺口，
-  且尚未「成為制度」（無 mandate / 負責人 / 真實系統涵蓋）。
+- **一句話**：能做、可演、且開始貼合真實環境。右側「**部署驗證**」已補上(`deploy-governance/`
+  檔案型發佈前驗章,L4 機制,見 [[l4-deploy-governance]]);剩「**入庫(元件庫/feed)**」與「成為制度」
+  （mandate / 負責人 / 真實系統涵蓋）兩個缺口。
 
 ---
 
@@ -32,7 +33,7 @@ note: |
 | 依賴政策/漏洞（**真 Mend**）| 機制 **L3** / 強制 **L2** | 接通公司引擎，但目前 advisory 不擋、只在 ADO、waiver 待處理 |
 | 入庫審核（加白名單）| **L3** | GitHub 完整(OSV+cooldown+CODEOWNERS)；ADO 正改用 Mend 判(進行中) |
 | **元件庫 / quarantine**（Azure Artifacts feed + feed-sync）| **L1** ⚠️ | 只有設計、還沒建 ← **最大缺口（閉環沒接）** |
-| **部署 / runtime 驗證**（擋未簽/未核可上線）| **L0–1** ⚠️ | 沒做（原 backlog T1）|
+| **部署 / runtime 驗證**（擋未簽/未核可上線）| **L4 機制** | `deploy-governance/` 檔案型發佈前驗章(fail-closed 6 道:簽章/完整性/測試/掃描證據)+ CMDB 證據鏈;backend war 已接進 CI。見 [[l4-deploy-governance]] |
 | 可見性 / 報告（Boards / Mend / SBOM 分發）| **L2** | Mend 有但 seat 不夠；Boards/feed 可見都還在設計 |
 | SBOM | **L3** | Syft 產 + cosign attest(GitHub)、Mend inventory；全員可見分發未接 |
 
@@ -56,7 +57,7 @@ note: |
 1. **接 feed-sync（核可 → Azure Artifacts）** → 閉環從「審核」延到「入庫」，是 L2→L3 的關鍵一環。
    見 [[mend-real-integration]] 與待辦。
 2. **Mend 轉 blocking + 接到全平台 + 處理 waiver**（estree-walker）→ 政策從 advisory 變強制（L2→L4）。
-3. **部署驗證（L4）**：上線前驗 cosign 簽章 + provenance → 補「擋得住」那一段。
+3. ~~部署驗證（L4）~~ ✅ **已補**:`deploy-governance/` 檔案型發佈前驗章(fail-closed)+ CMDB 證據鏈,backend war 接進 CI。見 [[l4-deploy-governance]]。後續:前端/dotnet 同路線、Tier 2(Vault+多環境 promote+上 ADO)。
 4. **制度骨架**：政策一頁 + 指派負責人(RACI) + 例外流程 + **挑一個真實系統正式納管**（覆蓋率 0→1）。
 
 ---

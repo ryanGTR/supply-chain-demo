@@ -11,3 +11,11 @@ public/
 *.sarif
 sbom-*.json
 semgrep.json
+
+# deploy-governance：CI 產生的發佈證據與臨時簽章金鑰(不入版控;真物證走 artifact 上傳)
+/ci.key
+/ci.pub
+/cmdb/
+/release-*.yaml
+/scan-verdict-*.json
+/trivy-*.json

@@ -1,0 +1,33 @@
+name: deploy-governance
+
+# L4 部署治理工具組的 self-test（fail-closed 驗章閘門的回歸測試）。
+# 在隔離工作區產 cosign key-pair、簽假 artifact,跑 1 正向 + 6 負向 + CMDB 驗證。
+# 這證明「未簽 / 竄改 / 缺證據 / 掃描 fail / 空測試 / 壞 digest」都被擋(exit 1)。
+# 對應治理控制項:ISO 27001 A.8.28 供應鏈完整性 / A.8.29 開發中測試。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: deploy-governance-selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 裝 cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: 裝 Python + PyYAML
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pyyaml
+
+      - name: deploy-governance self-test（fail-closed）
+        run: bash deploy-governance/tests/selftest.sh
