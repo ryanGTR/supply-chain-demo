@@ -21,7 +21,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: 產稽核證據索引
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
