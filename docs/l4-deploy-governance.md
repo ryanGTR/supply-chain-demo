@@ -85,10 +85,19 @@ bash deploy-governance/tests/selftest.sh
 |------|------|------|
 | 部署 / runtime 驗證(擋未簽/未核可上線)| **L0–1**(沒做)| **L4 機制**(fail-closed 驗章 + 6 道檢查 + self-test) |
 
-## 8. 邊界（後續）
+## 8. Tier 2 進度（簽章後端 + build-once promote）
 
+- **✅ 簽章後端換 Vault transit**(`signature.mode: hashivault`):私鑰留在 Vault Transit、永不落地,
+  發佈端只拿公鑰離線 `verify-blob`。**換後端只改 mode/key,L4 閘門邏輯零改動**(D3 adapter 兌現)。
+  PoC + 可重現腳本見 `~/Documents/vault-research/demo/transit-cosign/`。未來公司 HSM → `pkcs11://`,同模型。
+- **✅ build-once 多環境 promote**(`promote.py`):同一 artifact(相同 digest + 相同簽章)從
+  `test → uat → prod` **不重建不重簽**,逐區搬進發佈庫(feed)並**每區重新驗章**。三道守衛(fail-closed):
+  順序/禁跳關、來源區自身先過 L4、目標區重新驗章;**正式區需 `--approved-by`(CAB 核可)**。
+  self-test 6/6(`tests/promote-selftest.sh`)。
+
+### 後續
 - 前端 / dotnet 的檔案型路線、退役容器 build。
-- Tier 2:Vault transit 簽章後端、build-once 多環境 promote(test→uat→prod 逐區重驗)、變更治理、上 ADO。
+- 變更治理深化(變更分類 / 急件+PIR / 漂移對帳 / 補單≠漂白)、上 ADO 公司版(履歷主菜)。
 
 ## See Also
 - `deploy-governance/release-contract.md` — 交接契約 schema

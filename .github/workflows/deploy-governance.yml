@@ -31,3 +31,6 @@ jobs:
 
       - name: deploy-governance self-test（fail-closed）
         run: bash deploy-governance/tests/selftest.sh
+
+      - name: build-once promote self-test（fail-closed）
+        run: bash deploy-governance/tests/promote-selftest.sh
