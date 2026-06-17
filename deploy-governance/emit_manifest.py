@@ -66,6 +66,15 @@ def main() -> int:
     ap.add_argument("--requested-by", default="ci")
     ap.add_argument("--environment", default="")
     ap.add_argument("--data-classification", default="internal")
+    # 變更治理(T2.4):可選;有就寫進 metadata.change,交給 validate_change_class.py fail-closed 驗。
+    ap.add_argument("--change-type", default="", help="standard|normal|emergency|retroactive(留空=不寫 change 區塊)")
+    ap.add_argument("--priority", default="", help="P1..P4")
+    ap.add_argument("--justification", default="", help="emergency/retroactive 必填")
+    ap.add_argument("--pir-owner", default="")
+    ap.add_argument("--pir-due", default="", help="YYYY-MM-DD")
+    ap.add_argument("--nonconformity", default="", help="retroactive 必填(補單≠漂白)")
+    ap.add_argument("--expedite-by", default="")
+    ap.add_argument("--expedite-reason", default="")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -97,6 +106,24 @@ def main() -> int:
             "dataClassification": args.data_classification,
         },
     }
+
+    # 變更治理區塊(可選):任一 change 欄位有給才寫(缺則 = standard,零摩擦)。
+    change: dict = {}
+    if args.change_type:
+        change["type"] = args.change_type
+    if args.priority:
+        change["priority"] = args.priority
+    if args.justification:
+        change["justification"] = args.justification
+    if args.pir_owner or args.pir_due:
+        change["pir"] = {"owner": args.pir_owner, "dueBy": args.pir_due}
+    if args.nonconformity:
+        change["nonconformity"] = args.nonconformity
+    if args.expedite_by or args.expedite_reason:
+        change["expedite"] = {"by": args.expedite_by, "reason": args.expedite_reason}
+    if change:
+        manifest["metadata"]["change"] = change
+
     Path(args.out).write_text(
         yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False), encoding="utf-8")
     print(f"✅ 已產出 ReleaseManifest:{args.out}（digest={digest}, testCount={test_count}）")
