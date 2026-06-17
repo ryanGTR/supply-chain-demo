@@ -49,6 +49,7 @@ python3 deploy-governance/cmdb_validate.py --cmdb-dir cmdb --root .
 - ✅ Tier 1：工具組 + L4 驗章接進 `supply-chain.yml` 的 `release-backend`(檔案型 war)。
 - ✅ Tier 2：**Vault transit 簽章後端**(`mode: hashivault`,私鑰留 Vault;PoC 在 `vault-research/demo/transit-cosign/`)+ **build-once 多環境 promote**(`promote.py`,test→uat→prod 逐區重驗 + 正式區 CAB 核可)。
 - ✅ **T2.4 部署側變更治理**:移植 itops Phase E 右側治理成檔案型——變更分類(急件/插單/補單)+ PIR 承諾 + 補單≠漂白 + ★繞過旗標守衛 + 發佈漂移對帳。鐵則=**鬆綁審核不鬆綁技術閘門**。
-- ⏳ 後續：repository_dispatch 自動化、前端/dotnet 檔案型路線、上 ADO 公司版(T2.5/T2.6)。
+- ✅ **T2.5 自動化(GitHub,ADO-free)**:`.github/workflows/release-promote.yml`(workflow_dispatch)讓右側治理鏈**真的 fire**——build→簽→產 manifest(可帶變更治理欄位)→變更分類閘門→seed test→登錄 CMDB→**build-once promote test→uat→prod**(每區重新驗章、prod 需 CAB 核可)→漂移對帳→上傳證據。不再只是 script+self-test。
+- ⏳ 後續：repository_dispatch 串接(supply-chain build 後自動觸發 promote)、前端/dotnet 檔案型路線、上 ADO 公司版(T2.6)。
 
 對應治理控制項:ISO 27001 A.8.28 / A.8.29 / A.8.32 / A.5.36;ISO 20000 發布與部署管理。
