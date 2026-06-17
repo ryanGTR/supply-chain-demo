@@ -9,6 +9,13 @@ metadata:
   requestedBy: ci
   environment: ""              # Tier 1 無多環境;Tier 2 promote 逐區填
   serviceRequest: ""           # 可接 itops × iTop 的 UserRequest 編號
+  # change:                    # T2.4 變更治理(可選;缺則視為 standard,零摩擦)。詳見 ../release-contract.md
+  #   type: emergency          # standard|normal|emergency|retroactive
+  #   priority: P1
+  #   justification: "P1 production incident hotfix"   # emergency/retroactive 必填
+  #   pir: {owner: alice, dueBy: 2026-07-01}           # emergency/retroactive 必填
+  #   nonconformity: "DRIFT#42"                         # retroactive 必填(補單≠漂白)
+  #   expedite: {by: bob, reason: "incident"}          # 插單(可選,有就 by+reason 都要)
 spec:
   artifact:
     coordinates: com.example:product:1.0.0
