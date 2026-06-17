@@ -34,3 +34,6 @@ jobs:
 
       - name: build-once promote self-test（fail-closed）
         run: bash deploy-governance/tests/promote-selftest.sh
+
+      - name: 變更治理 self-test（變更分類 / 急件+PIR / 補單≠漂白 / 漂移對帳，fail-closed）
+        run: bash deploy-governance/tests/change-governance-selftest.sh
