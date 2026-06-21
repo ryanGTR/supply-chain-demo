@@ -212,7 +212,7 @@ jobs:
           echo "✓ 已簽章 + 綁 SBOM attestation：$IMG"
 
       - name: SLSA build provenance（GitHub artifact attestation，達 SLSA Build L3）
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ steps.img.outputs.name }}
           subject-digest: ${{ steps.build.outputs.digest }}
