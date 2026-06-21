@@ -2,7 +2,7 @@
 # 用 node:22-alpine：node:20-alpine 內建 npm 10.8.2 有 "Exit handler never
 # called!" 的 crash bug，會讓 npm ci/install 在裝完前就掛掉、devDependencies
 # （vue-tsc）沒裝成 → build 報 "vue-tsc: not found"。node:22 的 npm 正常。
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
